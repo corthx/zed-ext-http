@@ -80,6 +80,12 @@ include:
     GITLAB_TOFU_ROOT_DIR: terraform/live/labels
     GITLAB_TOFU_STATE_NAME: labels
 
+.unit:issue-boards:
+  extends: [.gitlab-provider-auth-via-provider-bot]
+  variables:
+    GITLAB_TOFU_ROOT_DIR: terraform/live/issue-boards
+    GITLAB_TOFU_STATE_NAME: issue-boards
+
 .unit:pipeline-schedule:token-rotation:
   extends: [.gitlab-provider-auth-via-provider-bot]
   variables:
@@ -220,6 +226,36 @@ apply:labels:
 
 destroy:labels:
   extends: [.destroy, .unit:labels]
+  needs:
+    - destroy:issue-boards
+
+# --- project issue boards ---
+plan:issue-boards:
+  extends: [.plan, .unit:issue-boards]
+  needs:
+    # Optional: a pipeline that touches only this unit never creates the labels
+    # jobs, and a `needs` on a job absent from the pipeline is a config error.
+    - job: plan:labels
+      optional: true
+  rules:
+    - !reference [".tofu:rules:plan:issue-boards", rules]
+
+apply:issue-boards:
+  extends: [.apply, .unit:issue-boards]
+  needs:
+    # Board lists reference labels by name, so labels apply first when both are
+    # in the pipeline; optional for the same reason as plan:issue-boards above.
+    - job: apply:labels
+      optional: true
+    - plan:issue-boards
+    # Waits for provider-bot's rotation, if any, so this job's token stays valid.
+    - job: apply:terraform-provider-bot
+      optional: true
+  rules:
+    - !reference [".tofu:rules:apply:issue-boards", rules]
+
+destroy:issue-boards:
+  extends: [.destroy, .unit:issue-boards]
 
 # --- renovate pipeline schedule ---
 plan:pipeline-schedule:renovate:
