@@ -1,0 +1,7 @@
+#:schema https://www.schemastore.org/tombi.json
+
+# tombi picks schemas by file name, so it would read `.mise/prek.toml` as a
+# prek config; these are mise task files.
+[[schemas]]
+path = "https://mise.jdx.dev/schema/mise-task.json"
+include = [".mise/*.toml"]

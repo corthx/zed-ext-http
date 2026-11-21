@@ -1,0 +1,94 @@
+#:schema https://www.schemastore.org/prek.json
+
+default_stages = ["pre-commit"]
+
+[priorities]
+format = 0
+autofix = 10
+check = 20
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "format-terraform"
+name = "Format terraform files"
+entry = "mise tofu:format"
+language = "system"
+types = ["terraform"]
+pass_filenames = false
+priority = "format"
+
+[[repos.hooks]]
+id = "lintfix-terraform"
+name = "Autofix terraform lint errors"
+entry = "mise tofu:lint:fix"
+language = "system"
+types = ["terraform"]
+pass_filenames = false
+priority = "autofix"
+
+[[repos.hooks]]
+id = "validate-terraform"
+name = "Validate terraform units"
+entry = "mise tofu:lint:validate:all"
+language = "system"
+# hcl too, so a lock-file-only change still gets validated.
+types_or = ["terraform", "hcl"]
+pass_filenames = false
+priority = "check"
+
+[[repos.hooks]]
+id = "ryl"
+name = "Lint YAML"
+entry = "ryl check"
+language = "system"
+types = ["yaml"]
+priority = "check"
+
+[[repos.hooks]]
+id = "format-markdown"
+name = "Format markdown"
+entry = "rumdl fmt"
+language = "system"
+types = ["markdown"]
+priority = "format"
+
+[[repos.hooks]]
+id = "rumdl"
+name = "Lint markdown"
+entry = "rumdl check"
+language = "system"
+types = ["markdown"]
+priority = "check"
+
+[[repos.hooks]]
+id = "format-toml"
+name = "Format TOML"
+entry = "tombi format"
+language = "system"
+types = ["toml"]
+priority = "format"
+
+[[repos.hooks]]
+id = "tombi"
+name = "Lint TOML"
+entry = "tombi lint"
+language = "system"
+types = ["toml"]
+priority = "check"
+
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id = "detect-private-key"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-merge-conflict"
+priority = "check"
+
+[[repos.hooks]]
+id = "check-added-large-files"
+priority = "check"

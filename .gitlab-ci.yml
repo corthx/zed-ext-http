@@ -1,0 +1,49 @@
+---
+
+# Pipeline-level interface parameters exposed in the "Run pipeline" UI.
+# Only used by the destroy pipeline; harmless for MR / default-branch runs.
+spec:
+  inputs:
+    destroy_infra:
+      type: boolean
+      default: false
+      description: >-
+        Set to true to expose the OpenTofu destroy jobs
+        (default branch only).
+---
+
+stages:
+  - maintenance
+  - lint
+  - plan
+  - apply
+  - cleanup
+
+workflow:
+  # Applies the PIPELINE_NAME the rules below set; without it the variable is
+  # inert. Rules setting none resolve to an empty string, leaving pipelines unnamed.
+  name: "$PIPELINE_NAME"
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_TASK == ""'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      variables:
+        PIPELINE_NAME: 'Scheduled pipeline: $SCHEDULE_TASK'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $[[ inputs.destroy_infra ]] && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
+      variables:
+        PIPELINE_NAME: 'Destroy pipeline'
+        # Expose the input as a pipeline variable so included jobs/rules
+        # (which are file-scoped and cannot read inputs) can consume it.
+        DESTROY_INFRA: "true"
+    # Must stay last: the rules above set the variables the job rules read.
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH'
+      variables:
+        PIPELINE_NAME: 'Manual run'
+        MANUAL_RUN: "true"
+
+include:
+  - local: .gitlab/ci/*.gitlab-ci.yml

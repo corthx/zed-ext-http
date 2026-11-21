@@ -1,0 +1,13 @@
+[global]
+exclude = [".gitlab/**", "**/.terraform/**"]
+
+[MD009]
+br-spaces = 2
+
+[MD013]
+line-length = 120
+tables = false
+
+[MD060]
+enabled = true
+style = "aligned"

@@ -1,0 +1,18 @@
+["prek:setup"]
+description = "Setup Git hooks with prek"
+run = "prek install"
+sources = ["prek.toml"]
+
+["prek:run"]
+description = "Run the prek linters on the diff between two refs (defaults: origin/main..HEAD)"
+usage = '''
+arg <from> help="Base git ref" default="origin/main"
+arg <to> help="Tip git ref" default="HEAD"
+'''
+run = '''
+prek run --show-diff-on-failure --from-ref="{{ usage.from }}" --to-ref="{{ usage.to }}"
+'''
+
+["prek:run:all"]
+description = "Run the prek linters over every file in the repository"
+run = "prek run --show-diff-on-failure --all-files"

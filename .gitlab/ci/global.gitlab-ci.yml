@@ -1,0 +1,103 @@
+---
+
+# Shared foundations for all jobs in this pipeline.
+# Hidden jobs (keys prefixed with `.`) defined here are referenced from
+# sibling files via `!reference [...]` or `extends:` because YAML anchors
+# do not cross the wildcard include in .gitlab-ci.yml.
+
+default:
+  # The `-debian` flavor, not the bare tag: the bare tag is a minimal image
+  # with no shell at all, which the runner cannot start a job in.
+  #
+  # entrypoint: [""] overrides the image's ENTRYPOINT ["mise"], otherwise GitLab
+  # Runner's job shell would launch as `mise -c <script>` and mise would reject
+  # the unknown `-c` flag before our script runs.
+  image:
+    name: jdxcode/mise:2026.11.5-debian
+    entrypoint: [""]
+
+variables:
+  MISE_DATA_DIR: $CI_PROJECT_DIR/.mise-data
+  MISE_ENV: ci
+  MISE_YES: "1"
+  TFLINT_PLUGIN_DIR: $CI_PROJECT_DIR/.tflint-data
+  RENOVATE_CACHE_DIR: $CI_PROJECT_DIR/.renovate-cache
+
+.default-retry:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - scheduler_failure
+
+.interruptible:
+  interruptible: true
+
+.not-interruptible:
+  interruptible: false
+
+.no-checkout:
+  variables:
+    GIT_STRATEGY: none
+
+# Renovate image, shared by the renovate-related jobs so one Renovate MR bumps
+# them all. entrypoint: [""] for the same reason as the default image above.
+.renovate-image:
+  image:
+    name: ghcr.io/renovatebot/renovate:44.241.0
+    entrypoint: [""]
+
+# Per-job tool sets. Adding a tool to mise.toml does not make it available to a
+# job — add it to the sets that need it.
+.toolset:lint:
+  variables:
+    TOOLSET: lint
+    TOOLSET_TOOLS: "prek rumdl tombi github:owenlamont/ryl opentofu tflint"
+
+# Base before_script: install the job's mise-managed tools and put them on PATH.
+# Pair it with one of the `.toolset:*` sets above.
+.mise-before_script:
+  before_script:
+    - mise trust --yes
+    # Unquoted: TOOLSET_TOOLS is a space-separated list that must word-split.
+    - mise install $TOOLSET_TOOLS
+    # Activate mise's managed env (JAVA_HOME, PATH with the installed tools)
+    # into the shell so subsequent script lines can call tools directly
+    # without a `mise exec --` prefix.
+    - eval "$(mise env -s bash)"
+
+.mise-cache:
+  cache:
+    key:
+      files:
+        - mise.toml
+        - mise.ci.toml
+      # One archive per tool set. Sharing a key across sets means the last job to
+      # finish overwrites the archive with its own subset, and the next pipeline
+      # reinstalls from scratch.
+      prefix: $TOOLSET
+    paths:
+      - $MISE_DATA_DIR/
+    policy: pull-push
+
+# Rulesets fetched by `tflint --init` from the GitHub API, unauthenticated.
+# Uncached, every lint job spends one of the 60 requests/hour GitHub allows the
+# runner's IP, and the job fails once they run out. Keyed on .tflint.hcl, so
+# GitHub is only hit again when Renovate bumps a ruleset.
+.tflint-cache:
+  cache:
+    key:
+      files:
+        - terraform/.tflint.hcl
+      prefix: tflint
+    paths:
+      - $TFLINT_PLUGIN_DIR/
+    policy: pull-push
+
+.renovate-cache:
+  cache:
+    key: renovate
+    paths:
+      - $RENOVATE_CACHE_DIR/
+    policy: pull-push

@@ -1,0 +1,128 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+
+  dependencyDashboard: {
+    enabled: true,
+    title: "Renovate Dependency Dashboard",
+    // The top-level `labels` only applies to MRs.
+    labels: ["dependencies"],
+  },
+  labels: ["dependencies"],
+  timezone: "Europe/Paris",
+  semanticCommits: "enabled",
+  semanticCommitType: "chore",
+  semanticCommitScope: "deps",
+  commitBodyTable: true,
+  // Renovate's default, spelled out: the MR lints, where a repo has them,
+  // recognize Renovate's branches by this prefix.
+  branchPrefix: "renovate/",
+
+  prConcurrentLimit: 10,
+  // prConcurrentLimit already caps open MRs; the default prHourlyLimit only
+  // parks updates under "Rate-Limited".
+  prHourlyLimit: 0,
+  // Leaves a week for a broken or compromised release to be caught and pulled
+  // before it reaches us. Security fixes opt out in vulnerabilityAlerts.
+  minimumReleaseAge: "7 days",
+
+  rangeStrategy: "pin",
+  lockFileMaintenance: {
+    enabled: true,
+  },
+
+  gitlabci: {
+    // Resolves `$CI_SERVER_FQDN/...` component includes.
+    registryAliases: {
+      $CI_SERVER_FQDN: "gitlab.com",
+    },
+  },
+
+  customManagers: [
+    // Versions written twice (e.g. a component input mirroring a mise.toml pin)
+    // carry a `# renovate:` comment so the second copy moves too.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^\\.gitlab/ci/.+\\.gitlab-ci\\.yml$/"],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: packageName=(?<packageName>\\S+))?(?: registryUrl=(?<registryUrl>\\S+))?\\s+\\S+:\\s*"?(?<currentValue>[^"\\s]+)"?',
+      ],
+      extractVersionTemplate: "^v?(?<version>.+)$",
+    },
+  ],
+
+  packageRules: [
+    // --- Automerge baseline ---------------------------------------------------
+    {
+      matchUpdateTypes: ["patch", "minor", "pin", "digest"],
+      automerge: true,
+    },
+    {
+      matchUpdateTypes: ["major"],
+      automerge: false,
+    },
+    // Modules provision the tokens CI authenticates with: a bad bump locks the
+    // pipeline out of the project.
+    {
+      matchManagers: ["terraform"],
+      matchDepTypes: ["module"],
+      automerge: false,
+    },
+    // OpenTofu is the engine every unit plans and applies with: only its
+    // patches merge on their own.
+    {
+      matchManagers: ["mise", "custom.regex"],
+      matchDepNames: ["opentofu"],
+      matchUpdateTypes: ["minor", "major"],
+      automerge: false,
+    },
+    // Renovate looks `required_version` up among Terraform releases, but the
+    // units run OpenTofu, whose versions don't follow Terraform's.
+    {
+      matchManagers: ["terraform"],
+      matchDepTypes: ["required_version"],
+      enabled: false,
+    },
+
+    // --- Groups ---------------------------------------------------------------
+    {
+      matchManagers: ["mise"],
+      groupName: "mise tools",
+    },
+    {
+      matchManagers: ["gitlabci", "gitlabci-include"],
+      groupName: "CI Images",
+    },
+    {
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["patch", "minor"],
+      groupName: "npm non-major dependencies",
+    },
+    // OpenTofu (mise.toml, mirrored in the component's opentofu_version input)
+    // and the OpenTofu CI component (include ref, mirrored in its version
+    // input) move in one MR: each component release only accepts a fixed list
+    // of opentofu_version values, so bumping either alone fails pipeline
+    // creation, and separateMajorMinor: false keeps a component major with an
+    // OpenTofu minor. Changing tofu.gitlab-ci.yml alone plans no unit, hence
+    // tofu:plan. Must stay after the groups above to win.
+    {
+      matchDepNames: ["opentofu", "components/opentofu"],
+      groupName: "opentofu",
+      separateMajorMinor: false,
+      addLabels: ["tofu:plan"],
+    },
+  ],
+
+  // GitLab exposes no vulnerability alerts to Renovate, so OSV is the source.
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    enabled: true,
+    // Fixes go out as soon as they are found: no 7-day wait, and the limits
+    // that hold back regular updates don't apply.
+    minimumReleaseAge: null,
+    prConcurrentLimit: 0,
+    branchConcurrentLimit: 0,
+    schedule: ["at any time"],
+    labels: ["security", "dependencies"],
+  },
+}
