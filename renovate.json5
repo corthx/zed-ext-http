@@ -111,6 +111,12 @@
       separateMajorMinor: false,
       addLabels: ["tofu:plan"],
     },
+
+    // --- Repo-specific --------------------------------------------------------
+    {
+      matchManagers: ["github-actions"],
+      groupName: "github actions",
+    },
   ],
 
   // GitLab exposes no vulnerability alerts to Renovate, so OSV is the source.

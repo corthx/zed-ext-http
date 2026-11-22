@@ -47,6 +47,14 @@ types = ["yaml"]
 priority = "check"
 
 [[repos.hooks]]
+id = "actionlint"
+name = "Lint GitHub Actions workflows"
+entry = "actionlint"
+language = "system"
+files = '^\.github/workflows/'
+priority = "check"
+
+[[repos.hooks]]
 id = "format-markdown"
 name = "Format markdown"
 entry = "rumdl fmt"
