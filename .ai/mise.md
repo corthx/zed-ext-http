@@ -11,7 +11,7 @@ to separate what is needed everywhere from what is only useful locally or in CI.
 | --------------- | ------------------------------------------------------------------------------ |
 | `mise.toml`     | Tools and tasks needed in both CI and local dev                                |
 | `mise.dev.toml` | Dev-only tools and hooks, loaded only when `MISE_ENV=dev`                      |
-| `mise.ci.toml`  | CI-only settings, loaded only when `MISE_ENV=ci`                               |
+| `mise.ci.toml`  | CI-only settings, tools and env, loaded only when `MISE_ENV=ci`                |
 | `.miserc.toml`  | Sets the default env to `dev` for local dev environments                       |
 | `.mise/*.toml`  | Topical task definitions, included via `[task_config] includes` in `mise.toml` |
 

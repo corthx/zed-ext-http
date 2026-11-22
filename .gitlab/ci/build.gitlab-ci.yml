@@ -1,0 +1,18 @@
+---
+
+build:extension:
+  stage: build
+  needs: []
+  extends:
+    - .default-retry
+    - .interruptible
+    - .toolset:rust
+  cache:
+    - !reference [".mise-cache", cache]
+    - !reference [".zig-cache", cache]
+  rules:
+    - !reference [".build:extension:rules", rules]
+  before_script:
+    - !reference [".mise-before_script", before_script]
+  script:
+    - mise run rust:build

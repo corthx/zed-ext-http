@@ -1,0 +1,8 @@
+#!/bin/sh
+# cc-rs passes Rust's triple (--target=x86_64-unknown-linux-gnu), which zig can't parse, and zig
+# only links against its bundled glibc for an explicit target of its own.
+for arg; do
+  shift
+  case $arg in --target=*) ;; *) set -- "$@" "$arg" ;; esac
+done
+exec zig cc -target "$(uname -m)-linux-gnu" "$@"

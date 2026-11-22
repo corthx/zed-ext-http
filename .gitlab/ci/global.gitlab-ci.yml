@@ -21,7 +21,11 @@ variables:
   MISE_ENV: ci
   MISE_YES: "1"
   TFLINT_PLUGIN_DIR: $CI_PROJECT_DIR/.tflint-data
+  ZIG_GLOBAL_CACHE_DIR: $CI_PROJECT_DIR/.zig-cache
   RENOVATE_CACHE_DIR: $CI_PROJECT_DIR/.renovate-cache
+  # rustup defaults to ~/.rustup and ~/.cargo, outside .mise-cache.
+  RUSTUP_HOME: $MISE_DATA_DIR/rustup
+  CARGO_HOME: $MISE_DATA_DIR/cargo
 
 .default-retry:
   retry:
@@ -53,7 +57,17 @@ variables:
 .toolset:lint:
   variables:
     TOOLSET: lint
-    TOOLSET_TOOLS: "prek rumdl tombi github:owenlamont/ryl opentofu tflint actionlint"
+    TOOLSET_TOOLS: "prek rumdl tombi github:owenlamont/ryl opentofu tflint actionlint rust zig"
+
+.toolset:rust:
+  variables:
+    TOOLSET: rust
+    TOOLSET_TOOLS: "rust zig"
+
+.toolset:httpyac:
+  variables:
+    TOOLSET: httpyac
+    TOOLSET_TOOLS: "bun"
 
 # Base before_script: install the job's mise-managed tools and put them on PATH.
 # Pair it with one of the `.toolset:*` sets above.
@@ -93,6 +107,18 @@ variables:
       prefix: tflint
     paths:
       - $TFLINT_PLUGIN_DIR/
+    policy: pull-push
+
+# zig's C runtime for the target and the C objects it compiled (aws-lc-sys, ring).
+# Keyed on the zig version only, so all the Rust jobs share it.
+.zig-cache:
+  cache:
+    key:
+      files:
+        - mise.ci.toml
+      prefix: zig
+    paths:
+      - $ZIG_GLOBAL_CACHE_DIR/
     policy: pull-push
 
 .renovate-cache:

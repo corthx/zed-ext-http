@@ -1,0 +1,23 @@
+@contentType = application/json
+
+### Get a user
+GET {{baseUrl}}/users/{{userId}}
+    ?verbose=true
+Accept: {{contentType}}
+User-Agent: {{userAgent}}
+Authorization: Bearer {{token}}
+
+### Create a user
+# @name createUser
+POST {{baseUrl}}/users
+Content-Type: {{contentType}}
+
+{
+  "id": "{{$uuid}}",
+  "name": "Ada",
+  "createdAt": "{{$isoTimestamp}}"
+}
+
+### Delete a user
+DELETE {{baseUrl}}/users/{{userId}}
+Authorization: Bearer {{token}}

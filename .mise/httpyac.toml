@@ -1,0 +1,15 @@
+["httpyac:patch"]
+description = "Install httpyac and apply the patches of httpyac-dist/scripts/patch-httpyac.js"
+dir = "{{ config_root }}/httpyac-dist"
+run = [
+  "bun install --frozen-lockfile",
+  "bun run patch",
+]
+
+["httpyac:build"]
+description = "Build the standalone httpyac executable for this platform into httpyac-dist/dist/httpyac"
+dir = "{{ config_root }}/httpyac-dist"
+run = [
+  "bun install --frozen-lockfile",
+  "bun run build",
+]

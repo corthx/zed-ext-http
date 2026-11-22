@@ -1,2 +1,9 @@
 # Local agent overrides, not shared
 AGENTS.local.md
+
+target/
+*.wasm
+# Grammars Zed clones when it builds the dev extension
+grammars/
+httpyac-dist/node_modules/
+httpyac-dist/dist/

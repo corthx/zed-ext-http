@@ -1,127 +1,91 @@
 # CI/CD Configuration Guide
 
-This document describes the architecture, patterns, and common tasks for this project GitLab CI/CD configuration.
+How this project's GitLab CI/CD configuration is organized, and the conventions to follow when changing it.
 
-## Overview
+## Layout
 
-The CI/CD configuration spans different YAML files across `.gitlab-ci.yml` and `.gitlab/ci/`.
+- `.gitlab-ci.yml` — the entry point: inputs, stages, workflow rules, and a wildcard include of
+  `.gitlab/ci/*.gitlab-ci.yml`. A new file there is included automatically; files in subdirectories are not.
+- `.gitlab/ci/global.gitlab-ci.yml` — the shared building blocks jobs extend: image, variables, tool sets, caches.
+- `.gitlab/ci/rules.gitlab-ci.yml` — the rules of every job.
+- The other files hold the jobs, grouped by concern (linting, tests, builds, OpenTofu, Renovate).
 
-## Directory Structure
+## Pipelines
 
-```text
-.gitlab-ci.yml                    # Entry point: inputs, stages, workflow rules, includes
-.gitlab/ci/
-  global.gitlab-ci.yml            # Shared foundations: image, variables, retry, tool sets, before_script, caches
-  rules.gitlab-ci.yml             # Centralized rules: conditions, change patterns, per-job composites
-  mr.gitlab-ci.yml                # MR title validation job (mr-title-lint component)
-  lint.gitlab-ci.yml              # prek linting job, renovate.json5 validation
-  renovate.gitlab-ci.yml          # Scheduled Renovate run
-  tofu.gitlab-ci.yml              # OpenTofu plan / apply / destroy, one set of jobs per terraform/live unit
-```
+The workflow rules in `.gitlab-ci.yml` decide whether a pipeline runs at all:
 
-## Include Mechanism
+- **MR pipelines** and **default-branch pushes**. Pushes to other branches get no pipeline until an MR exists.
+- **Schedules**, only when the schedule sets `SCHEDULE_TASK`. Jobs pick their schedule by its value.
+- **Web runs on the default branch**: a destroy pipeline when the `destroy_infra` input is `true` (sets
+  `DESTROY_INFRA=true`), a manual run otherwise (sets `MANUAL_RUN=true`). The manual-run rule must stay last so the more
+  specific web rules above it win.
 
-The main `.gitlab-ci.yml` uses a **wildcard include** to auto-register all top-level CI files:
+Included files can't read inputs, so the workflow turns them into variables for the job rules. Each rule names its
+pipeline through `PIPELINE_NAME`.
 
-```yaml
-include:
-  - local: .gitlab/ci/*.gitlab-ci.yml
-```
+## Rules
 
-Adding a new `.gitlab/ci/foo.gitlab-ci.yml` file automatically includes it in the pipeline. No manual registration
-needed.
+`rules.gitlab-ci.yml` is the single source of truth for job conditions. It has three layers:
 
-## Rules System
+1. **Condition anchors** (`&if-*`) — bare mappings merged into a rule with `<<:`, one per pipeline kind, MR label or
+   schedule task.
+2. **Change-pattern anchors** (`&*-patterns`) — bare lists aliased into a rule's `changes:`.
+3. **Composite rule sets** (`.<job>:rules`) — one per job, built from the anchors. These are the public API.
 
-`rules.gitlab-ci.yml` is the single source of truth for all job conditions. It has three layers:
+Jobs only ever `!reference [".<job>:rules", rules]`. Never reference the bare anchors from another file: anchors don't
+cross the wildcard include, and a referenced list can't be extended. Merging a condition into a composite is what lets
+it add `changes:`, `when:` or `variables:` to a single rule.
 
-1. **Condition anchors** — bare mappings merged into a rule with `<<:`:
-   - `&if-merge-request` — MR pipelines
-   - `&if-merge-request-renovate` — MR pipelines from Renovate's `renovate/*` branches
-   - `&if-merge-request-label-tofu-plan` / `&if-merge-request-label-tofu-apply` — MR pipelines with that label
-   - `&if-default-branch` — pushes to the default branch
-   - `&if-manual-run` — any other web pipeline on the default branch (`MANUAL_RUN=true`, set by the workflow)
-   - `&if-destroy-infra` — `destroy_infra` input set to `true` on the default branch (`DESTROY_INFRA=true`)
-   - `&if-schedule-renovate` — schedules with `SCHEDULE_TASK=renovate`
-   - `&if-schedule-token-rotation` — schedules with `SCHEDULE_TASK=token-rotation`
-2. **Change-pattern anchors** — bare lists aliased into a rule's `changes:`: `&gitlab-ci-patterns`, `&mise-patterns`,
-   `&renovate-config-patterns`, `&lint-toolchain-patterns` (a change there re-lints the whole repo), and one
-   `&tofu-<unit>-patterns` per `terraform/live/<unit>/`.
-3. **Composite rule sets** — one `.<job>:rules` per job (`.lint:mr-title:rules`, `.lint:rules`,
-   `.lint:renovate-config:rules`, `.renovate:rules`), plus `.tofu:rules:plan:<unit>` / `.tofu:rules:apply:<unit>` per
-   OpenTofu unit and `.tofu:rules:destroy`, built from the anchors. These are the public API.
+A job's patterns must cover everything that can change its outcome, not only its sources: the files pinning the
+versions of the tools it runs (`mise.toml`, `mise.ci.toml`), the mise tasks and scripts it calls, and the CI files
+defining it, its image and its components. Renovate bumps those files on their own, and a bump nothing tests merges
+untested.
 
-Jobs only ever `!reference [".<job>:rules", rules]`. Never reference the bare `.if-*` / `.*-patterns` anchors from
-another file: anchors don't cross the wildcard include, and a referenced list can't be extended. Merging a condition
-into a composite is what lets it add `changes:`, `when:` or `variables:` to a single rule.
-
-### OpenTofu rules
-
-A unit's plan runs when an MR or a default-branch push changes its files, on MRs labeled `tofu:plan` or `tofu:apply`,
-on manual runs, in destroy pipelines, and (for the bot units) in the token-rotation schedule. Its apply is always
-manual, except in the token-rotation schedule: on the default branch after a change, on manual runs, and on MRs
-labeled `tofu:apply`. See [docs/infrastructure.md](../docs/infrastructure.md) for the units.
+Most jobs run on MRs and default-branch pushes that change their patterns, and on every manual run, which checks
+everything. OpenTofu plans run the same way; applies stay manual, except in the token-rotation schedule. See
+[docs/infrastructure.md](../docs/infrastructure.md).
 
 ## Job Dependencies (DAG)
 
-Stages exist purely for **visual grouping** in the GitLab pipeline UI — they have no effect on execution order. Every
-job declares its real dependencies via `needs:`, and the actual execution timeline is the DAG formed by those
-declarations.
+Stages only group jobs in the pipeline UI. The execution order is the DAG formed by `needs:`:
 
-Rules:
-
-- Every job MUST declare a `needs:` key, even when empty. Never rely on implicit stage-by-stage ordering.
-- `needs: []` — for jobs with no upstream dependency. They start at t=0 alongside every other `needs: []` job,
-  regardless of which stage they sit in.
-- `needs: [{job: <name>, artifacts: false}]` — for jobs that depend on another job's completion. Pass
-  `artifacts: false` when you only care about completion and don't need the upstream job's artifact bundle.
-- `needs: [{job: <name>, optional: true}]` — when the upstream job isn't in every pipeline (e.g. `apply:labels` before
-  `apply:issue-boards`). A `needs` on a job absent from the pipeline is a config error otherwise.
+- Every job MUST declare `needs:`, even when empty. Never rely on stage-by-stage ordering.
+- `needs: []` — no upstream dependency: the job starts right away, whatever its stage.
+- `needs: [{job: <name>, artifacts: false}]` — wait for another job without downloading its artifacts.
+- `needs: [{job: <name>, optional: true}]` — the upstream job isn't in every pipeline. A `needs` on a job absent from
+  the pipeline is a config error otherwise.
 
 ## Shared Foundations
 
-### `global.gitlab-ci.yml`
-
-Defines reusable building blocks:
-
-- **`default: image`** — `jdxcode/mise:<version>-debian`, with `entrypoint: [""]`. The bare tag has no shell and no
-  git.
-- **`.default-retry`** — retry policy (max 2 retries for infra failures)
-- **`.toolset:*`** — per-job tool sets (`.toolset:lint`). Each sets `TOOLSET` (cache prefix) and `TOOLSET_TOOLS` (the
-  mise tools to install). A tool added to `mise.toml` is only available to the jobs whose set lists it.
-- **`.mise-before_script`** — `mise trust` + `mise install $TOOLSET_TOOLS` + env activation. Pair it with a
-  `.toolset:*` set.
-- **`.interruptible`** / **`.not-interruptible`** — cancel-on-new-commit flags
-- **`.no-checkout`** — `GIT_STRATEGY: none`, for jobs that don't read the repository (`renovate`)
-- **`.renovate-image`** — the Renovate image, shared by `renovate` and `lint:renovate-config` so one bump covers both
-- **Cache definitions** — `.mise-cache` (one archive per tool set via `prefix: $TOOLSET`), `.tflint-cache` (rulesets
-  fetched by `tflint --init` from GitHub's rate-limited API), `.renovate-cache`
+- **Image** — `jdxcode/mise:<version>-debian` with `entrypoint: [""]`. The bare tag has no shell, and its `mise`
+  entrypoint would reject the runner's `-c` flag.
+- **Tool sets** — each `.toolset:<name>` sets `TOOLSET` (the cache prefix) and `TOOLSET_TOOLS` (the mise tools to
+  install). `.mise-before_script` installs them and activates the mise env. A job only gets the tools its set lists, so
+  a tool added to `mise.toml` must also be added to the sets that need it. `mise.ci.toml` (`MISE_ENV=ci`) holds the
+  CI-only tools and env.
+- **Zig as the C toolchain** — the image has no compiler, which every job compiling Rust needs. Their tool sets include
+  `zig`, and `mise.ci.toml` points `CC`, `AR` and the host linker at the `ci/zig-cc` / `ci/zig-ar` wrappers.
+- **Caches** — one hidden `.<name>-cache` each, keyed on the files that determine its content so it's only rebuilt when
+  they change. The mise cache keeps one archive per tool set: a shared key would let the last job overwrite it with
+  its own subset. A tool keeping its own cache outside `MISE_DATA_DIR` gets a separate cache, with its directory moved
+  under `$CI_PROJECT_DIR` by a global variable (GitLab only caches paths inside the project).
+- **Job flags** — `.default-retry`, `.interruptible` / `.not-interruptible`, `.no-checkout` (for jobs that don't read
+  the repository).
+- **Shared images** — an image used by several jobs gets its own hidden key (e.g. `.renovate-image`), so one bump
+  covers them all.
 
 The OpenTofu jobs don't use mise: the OpenTofu component supplies its own image.
-
-## Stages
-
-| Stage         | Jobs                   | Condition                                                 |
-| ------------- | ---------------------- | --------------------------------------------------------- |
-| `maintenance` | `renovate`             | `SCHEDULE_TASK=renovate` schedule only                    |
-| `lint`        | `mr-title-lint`        | MR pipelines, except Renovate's                           |
-| `lint`        | `lint`                 | MR, default branch, and manual run                        |
-| `lint`        | `lint:renovate-config` | `renovate.json5` or its job/image changes, and manual run |
-| `plan`        | `plan:<unit>`          | Per unit, see `.tofu:rules:plan:<unit>`                   |
-| `apply`       | `apply:<unit>`         | Per unit, see `.tofu:rules:apply:<unit>`                  |
-| `cleanup`     | `destroy:<unit>`       | Destroy pipeline only                                     |
 
 ## Common Tasks
 
 ### Add a new CI job
 
-1. Add the job to the appropriate `.gitlab/ci/*.gitlab-ci.yml` file (or create a new one — it auto-includes via
-   wildcard).
-2. Add a `.<job>:rules` composite to `rules.gitlab-ci.yml` and reference it with
-   `!reference [".<job>:rules", rules]`.
-3. Extend shared foundations (`.default-retry`, `.interruptible`). If the job uses mise, also extend a `.toolset:*`
+1. Add the job to the matching `.gitlab/ci/*.gitlab-ci.yml` file, or create a new one.
+2. In `rules.gitlab-ci.yml`, add its `&<job>-patterns` anchor if it needs one, and its `.<job>:rules` composite.
+   Reference it with `!reference [".<job>:rules", rules]`.
+3. Extend the shared foundations (`.default-retry`, `.interruptible`). If the job uses mise, also extend a `.toolset:*`
    set (add one if none fits) and set `before_script: [!reference [".mise-before_script", before_script]]`.
-4. Declare `needs:` explicitly. Use `needs: []` if there is no upstream dependency.
+4. Declare `needs:` explicitly.
 
 ### Add an OpenTofu unit
 
@@ -132,31 +96,12 @@ The OpenTofu jobs don't use mise: the OpenTofu component supplies its own image.
 3. In `tofu.gitlab-ci.yml`, add a `.unit:<unit>` (auth + `GITLAB_TOFU_ROOT_DIR` + `GITLAB_TOFU_STATE_NAME`) and its
    `plan:` / `apply:` / `destroy:` jobs. The apply waits for `apply:terraform-provider-bot` (optional), so a token
    rotation can't invalidate its token mid-run.
-4. List the unit in [docs/infrastructure.md](../docs/infrastructure.md).
-
-## Workflow Rules
-
-The `workflow:rules:` block in `.gitlab-ci.yml` determines whether a pipeline runs at all:
-
-- **Scheduled pipelines** — run only when the schedule sets `SCHEDULE_TASK`, named `Scheduled pipeline: <task>`
-- **MR pipelines** — triggered by merge request events
-- **Default branch pipelines** — pushes/merges to main
-- **Destroy pipelines** — manual web trigger with the `destroy_infra` input set to `true`, named `Destroy pipeline`.
-  Sets `DESTROY_INFRA=true`, which exposes the `destroy:<unit>` jobs.
-- **Manual runs** — any other web trigger on the default branch, named `Manual run`. Sets `MANUAL_RUN=true`. This
-  rule must stay last so the more specific web rules above it win.
-
-Pushes to other branches don't create a pipeline until a merge request exists. `workflow:name: "$PIPELINE_NAME"`
-applies the name each rule sets.
 
 ## Gotchas
 
-- **Wildcard auto-include**: Any new `*.gitlab-ci.yml` at the top level of `.gitlab/ci/` is automatically included.
-  Files in subdirectories are NOT auto-included.
-- **Rules first-match-wins**: GitLab CI `rules:` uses first-match-wins semantics. Order matters.
-- **`!reference` vs YAML anchors**: Use `!reference [".some-key", rules]` to reference keys across files included at
-  the same level. YAML anchors (`*anchor`) only work within the same file.
+- **Rules first-match-wins**: GitLab CI `rules:` stops at the first matching rule. Order matters.
+- **`!reference` vs YAML anchors**: `!reference` works across included files; YAML anchors only within one file.
 - **Jobs are fixed when the pipeline is created**: adding or removing an MR label (e.g. `tofu:apply`) only affects the
   next pipeline. Retrigger one to pick up the change.
-- **Blocking manual jobs**: the `apply:<unit>` jobs are manual with `allow_failure: false`, so a pipeline that exposes
-  them stays "blocked" until they run.
+- **Blocking manual jobs**: a manual job with `allow_failure: false` (the OpenTofu applies) leaves its pipeline
+  "blocked" until it runs.

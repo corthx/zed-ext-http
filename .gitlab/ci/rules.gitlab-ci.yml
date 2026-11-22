@@ -51,12 +51,38 @@
   - mise.toml
   - mise.ci.toml
 
-# The config, plus the files defining the validator job and its image, so a
-# Renovate image bump also validates the config with the new version.
 .renovate-config-patterns: &renovate-config-patterns
   - renovate.json5
   - .gitlab/ci/lint.gitlab-ci.yml
   - .gitlab/ci/global.gitlab-ci.yml
+
+.runner-patterns: &runner-patterns
+  - runner/**/*
+  - mise.toml
+  - mise.ci.toml
+  - ci/zig-*
+  - .mise/rust.toml
+  - .gitlab/ci/global.gitlab-ci.yml
+  - .gitlab/ci/test.gitlab-ci.yml
+
+.extension-patterns: &extension-patterns
+  - Cargo.toml
+  - Cargo.lock
+  - src/**/*
+  - mise.toml
+  - mise.ci.toml
+  - ci/zig-*
+  - .mise/rust.toml
+  - .gitlab/ci/global.gitlab-ci.yml
+  - .gitlab/ci/build.gitlab-ci.yml
+
+.httpyac-patterns: &httpyac-patterns
+  - httpyac-dist/**/*
+  - mise.toml
+  - mise.ci.toml
+  - .mise/httpyac.toml
+  - .gitlab/ci/global.gitlab-ci.yml
+  - .gitlab/ci/test.gitlab-ci.yml
 
 .tofu-tofu-bot-patterns: &tofu-tofu-bot-patterns
   - terraform/live/tofu-bot/**/*
@@ -133,6 +159,30 @@
 .renovate:rules:
   rules:
     - <<: *if-schedule-renovate
+
+.test:runner:rules:
+  rules:
+    - <<: *if-merge-request
+      changes: *runner-patterns
+    - <<: *if-default-branch
+      changes: *runner-patterns
+    - <<: *if-manual-run
+
+.test:httpyac:rules:
+  rules:
+    - <<: *if-merge-request
+      changes: *httpyac-patterns
+    - <<: *if-default-branch
+      changes: *httpyac-patterns
+    - <<: *if-manual-run
+
+.build:extension:rules:
+  rules:
+    - <<: *if-merge-request
+      changes: *extension-patterns
+    - <<: *if-default-branch
+      changes: *extension-patterns
+    - <<: *if-manual-run
 
 .tofu:rules:plan:tofu-bot:
   rules:

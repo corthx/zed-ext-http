@@ -76,6 +76,8 @@ name = "Format TOML"
 entry = "tombi format"
 language = "system"
 types = ["toml"]
+# cargo rewrites it in its own format.
+exclude = '(^|/)Cargo\.lock$'
 priority = "format"
 
 [[repos.hooks]]
@@ -84,10 +86,35 @@ name = "Lint TOML"
 entry = "tombi lint"
 language = "system"
 types = ["toml"]
+# cargo rewrites it in its own format.
+exclude = '(^|/)Cargo\.lock$'
+priority = "check"
+
+[[repos.hooks]]
+id = "format-rust"
+name = "Format Rust files"
+entry = "mise rust:format"
+language = "system"
+types = ["rust"]
+pass_filenames = false
+priority = "format"
+
+[[repos.hooks]]
+id = "clippy"
+name = "Lint Rust files"
+entry = "mise rust:lint"
+language = "system"
+# Manifests too: a dependency bump can bring new lints.
+files = '(\.rs|(^|/)Cargo\.(toml|lock))$'
+pass_filenames = false
 priority = "check"
 
 [[repos]]
 repo = "builtin"
+
+[[repos.hooks]]
+id = "check-json"
+priority = "check"
 
 [[repos.hooks]]
 id = "detect-private-key"

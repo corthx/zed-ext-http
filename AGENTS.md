@@ -20,14 +20,39 @@ Read `AGENTS.local.md` if it exists. It is gitignored and holds rules for one wo
 
 ### High-Level Structure
 
-zed-ext-http is a [Zed](https://zed.dev/) extension for HTTP. The extension sources aren't in the repository yet: this
-section describes them once they land.
+zed-ext-http is a [Zed](https://zed.dev/) extension that runs requests from `.http` files with
+[httpyac](https://httpyac.github.io). See [docs/architecture.md](docs/architecture.md) for how the parts fit together.
+
+**Extension:**
+
+- `extension.toml`, `Cargo.toml`, `src/lib.rs` - The extension (Rust, built for `wasm32-wasip2`). It poses as a language
+  server so Zed runs its code when an `.http` file opens, downloads `http-runner` from this project's releases, and
+  starts `http-runner lsp`.
+- `languages/http/` - Language config and tree-sitter queries: highlighting, injections, outline, the gutter runnables
+  (`runnables.scm`) and the tasks they run (`tasks.json`). The tasks' `sh -c` snippet is shell source: it must never
+  contain a single quote.
+
+**Runner:**
+
+- `runner/` - `http-runner`, a separate Rust crate: the CLI the tasks call (`run`, `all`, `env`, `setup`), and the
+  `lsp` server that serves the environment code lenses and code actions. It downloads httpyac and verifies it against
+  `runner/httpyac.sha256`.
+- `httpyac-dist/` - Builds httpyac as a standalone executable with Bun. `scripts/patch-httpyac.js` patches httpyac
+  before the build; each patch fails loudly when its pattern no longer matches.
+- `examples/` - A demo `.http` file with matching env files, for trying the extension by hand.
+
+The extension and the runner share one version (`extension.toml`, `Cargo.toml`, `runner/Cargo.toml`): the extension
+downloads the runner release of its own version.
 
 **Documentation:**
 
 - `README.md` - User-facing only: how to install and use the extension. Never document this repository or its
   processes there; that goes in `CONTRIBUTING.md`, `docs/` and `.ai/`.
 - `CONTRIBUTING.md` - Entry point for contributors, linking to `docs/development.md`.
+
+Every doc explains concepts, conventions and how to apply them, not an inventory of what currently exists (every job,
+file, anchor, task or setting). Name an item only as an example or when a procedure needs it, so adding one doesn't
+mean updating the docs. The files themselves are the inventory.
 
 **Infrastructure:**
 
@@ -58,10 +83,6 @@ GitHub.
 
 ## Build & Test Commands
 
-| Task                    | Command                           |
-| ----------------------- | --------------------------------- |
-| Lint the changed files  | `mise run prek:run`               |
-| Lint every file         | `mise run prek:run:all`           |
-| Validate the tofu units | `mise run tofu:lint:validate:all` |
+Tasks are grouped by tool prefix (`prek:*`, `rust:*`, `httpyac:*`, `tofu:*`); `mise tasks` lists them.
 
 **Always run `mise run prek:run:all` and confirm every hook passes before presenting an implementation for review.**

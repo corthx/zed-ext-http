@@ -9,16 +9,14 @@ the GitLab UI: a manual change is reverted by the next apply.
 `terraform/live/<unit>/` holds one small root module per concern. Each one calls a versioned module that the
 `infrastructure` repository publishes to the GitLab module registry (`gitlab.com/corthx/<module>/gitlab`).
 
-| Unit                               | Manages                                                                                                               |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `labels`                           | Project labels, including `tofu:plan` / `tofu:apply`                                                                  |
-| `issue-boards`                     | Project issue boards and their lists                                                                                  |
-| `terraform-provider-bot`           | Maintainer service account whose token (`GITLAB_TOFU_PROVIDER_TOKEN`) authenticates the GitLab provider in every unit |
-| `terraform-provider-rotator-bot`   | Second maintainer account (`GITLAB_TOFU_PROVIDER_ROTATOR_TOKEN`), used only to rotate the provider bot's own token    |
-| `tofu-bot`                         | Reporter account (`GITLAB_TOFU_MR_PLAN_TOKEN`) that posts plans as MR comments                                        |
-| `pipeline-schedule-token-rotation` | Weekly `SCHEDULE_TASK=token-rotation` schedule that re-applies the bot units                                          |
-| `renovate-bot`                     | Developer account (`RENOVATE_TOKEN`, `RENOVATE_GIT_AUTHOR_EMAIL`) that Renovate runs as                               |
-| `pipeline-schedule-renovate`       | Daily `SCHEDULE_TASK=renovate` schedule that runs Renovate                                                            |
+The units fall into three kinds:
+
+- **Project settings**, such as the labels (including `tofu:plan` / `tofu:apply`) and the issue boards.
+- **Bots**: service accounts whose tokens each unit stores as a CI/CD variable for the jobs that need them. The
+  terraform provider bot authenticates the GitLab provider in every unit, and a separate rotator bot rotates the
+  provider bot's own token. Every other bot serves a single job, such as posting plans on merge requests or running
+  Renovate.
+- **Pipeline schedules**, one per `SCHEDULE_TASK`, such as the weekly token rotation that re-applies the bot units.
 
 GitLab manages the state: each unit has its own encrypted state, named after the unit. `backend "http" {}` stays empty
 in code, and the OpenTofu CI component fills it in. No state file or `.terraform` directory is ever committed; the

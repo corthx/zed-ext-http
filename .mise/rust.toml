@@ -1,0 +1,26 @@
+["rust:format"]
+alias = "rust:fmt"
+description = "Format the Rust crates in place"
+run = [
+  "cargo fmt",
+  "cargo fmt --manifest-path runner/Cargo.toml",
+]
+
+["rust:lint"]
+description = "Lint the Rust crates with clippy"
+run = [
+  "cargo clippy --locked --target wasm32-wasip2 -- -D warnings",
+  "cargo clippy --locked --all-targets --manifest-path runner/Cargo.toml -- -D warnings",
+]
+
+["rust:test"]
+description = "Run the http-runner tests"
+run = "cargo test --locked --manifest-path runner/Cargo.toml"
+
+["rust:build"]
+description = "Build the extension as Zed does (wasm32-wasip2, release)"
+run = "cargo build --locked --release --target wasm32-wasip2"
+
+["rust:install:runner"]
+description = "Install http-runner on the PATH (~/.cargo/bin), where the extension and the tasks pick it up first"
+run = "cargo install --locked --path runner"

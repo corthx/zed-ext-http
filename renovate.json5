@@ -25,6 +25,10 @@
   // Leaves a week for a broken or compromised release to be caught and pulled
   // before it reaches us. Security fixes opt out in vulnerabilityAlerts.
   minimumReleaseAge: "7 days",
+  statusCheckWhen: {
+    minimumReleaseAge: "never",
+  },
+  ignoreTests: false,
 
   rangeStrategy: "pin",
   lockFileMaintenance: {
@@ -116,6 +120,34 @@
     {
       matchManagers: ["github-actions"],
       groupName: "github actions",
+    },
+    // Cargo.lock pins the exact versions. "pin" would also rewrite Cargo.toml's
+    // ranges as `=x.y.z`, which can make other crates' requirements unresolvable.
+    {
+      matchManagers: ["cargo"],
+      rangeStrategy: "bump",
+    },
+    {
+      matchManagers: ["cargo"],
+      matchUpdateTypes: ["patch", "minor"],
+      groupName: "rust non-major dependencies",
+    },
+    // Its version sets the oldest Zed release the extension loads in: only
+    // bumped when a new API is needed, from the dependency dashboard.
+    {
+      matchManagers: ["cargo"],
+      matchDepNames: ["zed_extension_api"],
+      dependencyDashboardApproval: true,
+      automerge: false,
+      groupName: null,
+    },
+    // CI only checks that patch-httpyac.js still applies. A bump also needs an
+    // httpyac-v* release, with VERSION and the checksums updated in runner/.
+    {
+      matchManagers: ["npm"],
+      matchDepNames: ["httpyac"],
+      automerge: false,
+      groupName: null,
     },
   ],
 

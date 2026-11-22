@@ -1,0 +1,34 @@
+---
+
+test:runner:
+  stage: test
+  needs: []
+  extends:
+    - .default-retry
+    - .interruptible
+    - .toolset:rust
+  cache:
+    - !reference [".mise-cache", cache]
+    - !reference [".zig-cache", cache]
+  rules:
+    - !reference [".test:runner:rules", rules]
+  before_script:
+    - !reference [".mise-before_script", before_script]
+  script:
+    - mise run rust:test
+
+test:httpyac:
+  stage: test
+  needs: []
+  extends:
+    - .default-retry
+    - .interruptible
+    - .toolset:httpyac
+  cache:
+    - !reference [".mise-cache", cache]
+  rules:
+    - !reference [".test:httpyac:rules", rules]
+  before_script:
+    - !reference [".mise-before_script", before_script]
+  script:
+    - mise run httpyac:patch

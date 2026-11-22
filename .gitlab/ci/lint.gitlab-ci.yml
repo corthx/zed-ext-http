@@ -3,7 +3,6 @@
 lint:
   stage: lint
   needs: []
-  dependencies: []
   extends:
     - .default-retry
     - .interruptible
@@ -11,6 +10,7 @@ lint:
   cache:
     - !reference [".mise-cache", cache]
     - !reference [".tflint-cache", cache]
+    - !reference [".zig-cache", cache]
   rules:
     - !reference [".lint:rules", rules]
   variables:
@@ -31,7 +31,6 @@ lint:renovate-config:
     - .default-retry
     - .interruptible
   needs: []
-  dependencies: []
   rules:
     - !reference [".lint:renovate-config:rules", rules]
   script:

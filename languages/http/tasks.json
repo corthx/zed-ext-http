@@ -1,0 +1,34 @@
+[
+  {
+    "label": "Send request: $ZED_CUSTOM_url",
+    "command": "sh",
+    "args": [
+      "-c",
+      "'r=$(command -v http-runner) || r=\"$HOME/Library/Application Support/Zed/extensions/work/http-runner/bin/http-runner\"; [ -x \"$r\" ] || r=\"${XDG_DATA_HOME:-$HOME/.local/share}/zed/extensions/work/http-runner/bin/http-runner\"; [ -x \"$r\" ] || { echo \"http-runner is not installed yet: open an .http file and wait for the HTTP Runner extension to download it.\" >&2; exit 127; }; exec \"$r\" \"$@\"'",
+      "http-runner",
+      "run",
+      "\"$ZED_FILE\"",
+      "$ZED_ROW"
+    ],
+    "tags": [
+      "http-request"
+    ],
+    "reveal": "always",
+    "show_summary": false,
+    "show_command": false
+  },
+  {
+    "label": "HTTP: send all requests in file",
+    "command": "sh",
+    "args": [
+      "-c",
+      "'r=$(command -v http-runner) || r=\"$HOME/Library/Application Support/Zed/extensions/work/http-runner/bin/http-runner\"; [ -x \"$r\" ] || r=\"${XDG_DATA_HOME:-$HOME/.local/share}/zed/extensions/work/http-runner/bin/http-runner\"; [ -x \"$r\" ] || { echo \"http-runner is not installed yet: open an .http file and wait for the HTTP Runner extension to download it.\" >&2; exit 127; }; exec \"$r\" \"$@\"'",
+      "http-runner",
+      "all",
+      "\"$ZED_FILE\""
+    ],
+    "reveal": "always",
+    "show_summary": false,
+    "show_command": false
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "name": "httpyac-dist",
+  "private": true,
+  "description": "Builds httpyac as a standalone executable (bun build --compile) for http-runner",
+  "dependencies": {
+    "httpyac": "6.16.7"
+  },
+  "scripts": {
+    "patch": "bun scripts/patch-httpyac.js",
+    "build": "bun scripts/patch-httpyac.js && bun build --compile --minify cli.js --outfile dist/httpyac"
+  }
+}

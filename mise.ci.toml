@@ -4,3 +4,14 @@
 # the per-job tool filtering in .gitlab/ci/global.gitlab-ci.yml.
 task.run_auto_install = false
 not_found_auto_install = false
+
+# The CI image has no C toolchain, which Rust needs to link build scripts and proc macros (even for
+# wasm) and http-runner's TLS crates need to compile C. Zig provides one.
+[tools]
+zig = "0.17.1"
+
+[env]
+CC = "{{ config_root }}/ci/zig-cc"
+AR = "{{ config_root }}/ci/zig-ar"
+CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER = "{{ config_root }}/ci/zig-cc"
+CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER = "{{ config_root }}/ci/zig-cc"

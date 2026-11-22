@@ -8,7 +8,6 @@ renovate:
     - .not-interruptible
     - .no-checkout
   needs: []
-  dependencies: []
   rules:
     - !reference [".renovate:rules", rules]
   cache:
@@ -23,5 +22,8 @@ renovate:
     RENOVATE_GIT_AUTHOR: "Renovate Bot <$RENOVATE_GIT_AUTHOR_EMAIL>"
     RENOVATE_ONBOARDING: "false"
     RENOVATE_REQUIRE_CONFIG: required
+    # Otherwise a status posted before the MR pipeline exists creates an
+    # `external` pipeline that GitLab can automerge.
+    RENOVATE_X_GITLAB_SKIP_STATUS_WITHOUT_PIPELINE: "true"
   script:
     - renovate
